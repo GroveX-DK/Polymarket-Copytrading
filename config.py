@@ -42,7 +42,7 @@ def load() -> Config:
             if addr:
                 whales.append(addr)
 
-    min_chunk_weight = float(os.getenv("MIN_CHUNK_WEIGHT", "0.10"))
+    min_chunk_weight = float(os.getenv("MIN_CHUNK_WEIGHT", "0.05"))
     exit_raw = os.getenv("EXIT_CHUNK_WEIGHT", "").strip()
 
     cfg = Config(
@@ -61,7 +61,7 @@ def load() -> Config:
         rebalance_band=float(os.getenv("REBALANCE_BAND", "0.05")),
         order_type=os.getenv("ORDER_TYPE", "FAK").strip().upper(),
         poll_seconds=int(os.getenv("POLL_SECONDS", "60")),
-        paper_balance=float(os.getenv("PAPER_BALANCE", "10")),
+        paper_balance=float(os.getenv("PAPER_BALANCE", "20")),
         log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
     )
 
