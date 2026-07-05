@@ -1,0 +1,17 @@
+[Unit]
+Description=Polymarket copytrading bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/polymarket-copybot
+ExecStart=/home/pi/polymarket-copybot/.venv/bin/python bot.py
+Restart=always
+RestartSec=30
+# Hard cap well under the Pi's 1 GB so the bot can never take the system down.
+MemoryMax=300M
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
