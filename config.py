@@ -22,6 +22,7 @@ class Config:
     copy_ratio: float
     max_chunks: int
     min_chunk_weight: float
+    exit_chunk_weight: float
     min_order_usd: float
     rebalance_band: float
     order_type: str
@@ -41,6 +42,9 @@ def load() -> Config:
             if addr:
                 whales.append(addr)
 
+    min_chunk_weight = float(os.getenv("MIN_CHUNK_WEIGHT", "0.10"))
+    exit_raw = os.getenv("EXIT_CHUNK_WEIGHT", "").strip()
+
     cfg = Config(
         whales=whales,
         dry_run=_bool(os.getenv("DRY_RUN", "true")),
@@ -49,12 +53,15 @@ def load() -> Config:
         signature_type=int(os.getenv("SIGNATURE_TYPE", "1")),
         copy_ratio=float(os.getenv("COPY_RATIO", "1.0")),
         max_chunks=int(os.getenv("MAX_CHUNKS", "15")),
-        min_chunk_weight=float(os.getenv("MIN_CHUNK_WEIGHT", "0.02")),
+        min_chunk_weight=min_chunk_weight,
+        # Hysteresis: a chunk already held is only dropped when it falls
+        # below this weight, so it doesn't flip-flop around the entry cutoff.
+        exit_chunk_weight=float(exit_raw) if exit_raw else 0.8 * min_chunk_weight,
         min_order_usd=float(os.getenv("MIN_ORDER_USD", "1.0")),
-        rebalance_band=float(os.getenv("REBALANCE_BAND", "0.15")),
+        rebalance_band=float(os.getenv("REBALANCE_BAND", "0.05")),
         order_type=os.getenv("ORDER_TYPE", "FAK").strip().upper(),
         poll_seconds=int(os.getenv("POLL_SECONDS", "60")),
-        paper_balance=float(os.getenv("PAPER_BALANCE", "100")),
+        paper_balance=float(os.getenv("PAPER_BALANCE", "10")),
         log_level=os.getenv("LOG_LEVEL", "INFO").strip().upper(),
     )
 

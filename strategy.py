@@ -20,12 +20,15 @@ def tradable(p: dict) -> bool:
     return not p.get("redeemable") and 0.0 < price < 1.0
 
 
-def chunk_weights(whale_positions: dict, max_chunks: int, min_weight: float) -> dict:
+def chunk_weights(whale_positions: dict, max_chunks: int, min_weight: float,
+                  exit_weight: float, held=frozenset()) -> dict:
     """Aggregate whale portfolios into at most max_chunks target weights.
 
     Each whale's positions become weights of that whale's total position
     value; weights are averaged across whales (so a market held by several
-    whales becomes one bigger chunk), then only the largest chunks are kept.
+    whales becomes one bigger chunk). A chunk is copied once it reaches
+    min_weight; a chunk we already hold stays until it falls below
+    exit_weight, so it doesn't flip-flop around the entry cutoff.
     Returns {token_id: {"weight": w, "meta": position}}.
     """
     per_asset = {}
@@ -43,13 +46,13 @@ def chunk_weights(whale_positions: dict, max_chunks: int, min_weight: float) -> 
     if not active_whales:
         return {}
 
-    ranked = sorted(per_asset.items(), key=lambda kv: kv[1]["weight"], reverse=True)
     chunks = {}
-    for token_id, slot in ranked[:max_chunks]:
+    for token_id, slot in per_asset.items():
         weight = slot["weight"] / active_whales
-        if weight >= min_weight:
+        if weight >= min_weight or (token_id in held and weight >= exit_weight):
             chunks[token_id] = {"weight": weight, "meta": slot["meta"]}
-    return chunks
+    ranked = sorted(chunks.items(), key=lambda kv: kv[1]["weight"], reverse=True)
+    return dict(ranked[:max_chunks])
 
 
 def _floor2(x: float) -> float:

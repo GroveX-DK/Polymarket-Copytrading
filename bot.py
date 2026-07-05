@@ -76,8 +76,10 @@ def cycle(cfg, ex: Executor, state: dict):
     if not whale_positions:
         return
 
-    chunks = strategy.chunk_weights(whale_positions, cfg.max_chunks, cfg.min_chunk_weight)
     managed = state["managed"]
+    chunks = strategy.chunk_weights(whale_positions, cfg.max_chunks,
+                                    cfg.min_chunk_weight, cfg.exit_chunk_weight,
+                                    held=set(managed))
     now = time.time()
     recent = state.setdefault("recent", {})
 
@@ -95,8 +97,20 @@ def cycle(cfg, ex: Executor, state: dict):
         my_positions[t]["currentValue"] for t in managed if t in my_positions
     )
     trades = strategy.plan_trades(chunks, my_positions, managed, bankroll, cash, cfg)
-    log.info("whales=%d chunks=%d | bankroll=$%.2f cash=$%.2f | trades=%d",
-             len(whale_positions), len(chunks), bankroll, cash, len(trades))
+    log.info("portfolio=$%.2f (cash $%.2f + positions $%.2f) | whales=%d chunks=%d | trades=%d",
+             bankroll, cash, bankroll - cash, len(whale_positions), len(chunks), len(trades))
+
+    held = sorted(((t, my_positions[t]) for t in managed if t in my_positions),
+                  key=lambda kv: kv[1]["currentValue"], reverse=True)
+    for token_id, pos in held:
+        value = pos["currentValue"]
+        pct = 100 * value / bankroll if bankroll > 0 else 0.0
+        if token_id in chunks:
+            target = f"target {100 * cfg.copy_ratio * chunks[token_id]['weight']:.1f}%"
+        else:
+            target = "exiting"
+        log.info("  %-45s $%6.2f = %4.1f%% of portfolio (%s)",
+                 pos.get("title", token_id[:16]), value, pct, target)
 
     for trade in trades:
         key = f"{trade.side}:{trade.token_id}"

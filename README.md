@@ -11,8 +11,10 @@ Every `POLL_SECONDS` (default 60):
 1. **Analyse whales** - fetches all open positions for every address in
    `whales.txt` from the Polymarket data API.
 2. **Bundle into chunks** - each whale's positions become portfolio weights;
-   weights are averaged across whales, then only the top `MAX_CHUNKS` above
-   `MIN_CHUNK_WEIGHT` are kept. 10-50 dust positions collapse into ~15 chunks.
+   weights are averaged across whales, then only chunks that make up at least
+   `MIN_CHUNK_WEIGHT` (default 10%) of the whale portfolio are copied, capped
+   at `MAX_CHUNKS`. A chunk already held is kept until it falls below
+   `EXIT_CHUNK_WEIGHT` (default 8%), so it doesn't flip-flop around the cutoff.
 3. **Trade relative to your account** - each chunk's weight is applied to your
    bankroll (USDC + bot-held positions). The bot buys the gap when you're
    under target, trims when over, and exits when the whales exit. Minimum
