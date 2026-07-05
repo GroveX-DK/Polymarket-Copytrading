@@ -27,12 +27,40 @@ def save_state(state: dict):
     STATE_FILE.write_text(json.dumps(state, indent=1))
 
 
-def paper_book(state: dict, chunks: dict) -> tuple:
-    """Value simulated holdings at the freshest known price."""
+def paper_book(state: dict, whale_positions: dict) -> tuple:
+    """Settle resolved paper positions, value the rest at fresh prices."""
+    latest = {p["asset"]: p for ps in whale_positions.values() for p in ps}
     positions = {}
-    for token_id, pos in state["managed"].items():
-        if token_id in chunks:
-            pos["last_price"] = chunks[token_id]["meta"]["curPrice"]
+    for token_id, pos in list(state["managed"].items()):
+        won = None  # None = market still open (or unknown), else bool
+        whale_pos = latest.get(token_id)
+        if whale_pos is not None:
+            pos["last_price"] = whale_pos["curPrice"]
+            pos.setdefault("condition_id", whale_pos.get("conditionId", ""))
+            if whale_pos.get("redeemable"):
+                won = whale_pos["curPrice"] >= 0.5
+        elif pos.get("condition_id"):
+            # No tracked whale holds it anymore - ask the CLOB directly.
+            try:
+                status = datafeed.get_market_status(pos["condition_id"], token_id)
+            except Exception as e:
+                log.warning("Market status check failed for %s: %s",
+                            pos.get("title", token_id[:16]), e)
+                status = None
+            if status:
+                pos["last_price"] = status["price"]
+                if status["closed"]:
+                    won = status["winner"]
+
+        if won is not None:
+            payout = pos["shares"] * (1.0 if won else 0.0)
+            state["cash"] += payout
+            log.info("PAPER SETTLE %s: %s | %.2f shares -> $%.2f",
+                     "WON" if won else "LOST", pos.get("title", token_id[:16]),
+                     pos["shares"], payout)
+            del state["managed"][token_id]
+            continue
+
         price = pos.get("last_price", 0.5)
         positions[token_id] = {
             "currentValue": pos["shares"] * price,
@@ -52,6 +80,8 @@ def apply_fill(state: dict, trade, cfg):
             "title": trade.title, "neg_risk": trade.neg_risk,
         })
         entry["last_price"] = trade.price
+        if trade.condition_id:
+            entry["condition_id"] = trade.condition_id
         if cfg.dry_run:
             entry["shares"] += trade.usd / trade.price
             state["cash"] -= trade.usd
@@ -84,7 +114,7 @@ def cycle(cfg, ex: Executor, state: dict):
     recent = state.setdefault("recent", {})
 
     if cfg.dry_run:
-        my_positions, cash = paper_book(state, chunks)
+        my_positions, cash = paper_book(state, whale_positions)
     else:
         my_positions = {p["asset"]: p for p in datafeed.get_positions(cfg.funder, size_threshold=0.1)}
         cash = ex.usdc_balance()

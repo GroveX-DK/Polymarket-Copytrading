@@ -12,6 +12,7 @@ class Trade:
     price: float  # last known price, used for paper fills
     neg_risk: bool
     title: str
+    condition_id: str = ""  # market id, kept so paper mode can check resolution
 
 
 def tradable(p: dict) -> bool:
@@ -108,7 +109,8 @@ def plan_trades(chunks: dict, my_positions: dict, managed: dict,
             continue
         meta = chunk["meta"]
         buys.append(Trade("BUY", token_id, usd, 0.0, meta["curPrice"],
-                          bool(meta.get("negativeRisk")), meta.get("title", token_id[:16])))
+                          bool(meta.get("negativeRisk")), meta.get("title", token_id[:16]),
+                          meta.get("conditionId", "")))
         available -= usd
 
     return sells + buys
